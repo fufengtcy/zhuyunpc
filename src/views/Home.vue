@@ -15,7 +15,11 @@
                 @change="handleSearch"
                 :allowClear="allowClear"
               >
-                <a-select-option v-for="item of principalValue" :key="item.id">
+                <a-select-option
+                  v-for="item of principalValue"
+                  :value="item.name"
+                  :key="item.id"
+                >
                   <img
                     :src="item.avatar"
                     alt=""
@@ -55,13 +59,25 @@
           </a-col>
         </a-row>
       </div>
-
+      <div style="margin-bottom: 16px">
+        <a-button style="margin-left: 8px" type="primary" @click="start">
+          删除
+        </a-button>
+        <span style="margin-left: 8px">
+          <template v-if="hasSelected">
+            {{ `已选择${selectedRowKeys.length} 项` }}
+          </template>
+        </span>
+      </div>
       <a-table
         :columns="columns"
         rowKey="communityId"
         :data-source="tableData"
         :locale="{ emptyText: '暂无数据' }"
-        :pagination="false"
+        :row-selection="{
+          selectedRowKeys: selectedRowKeys,
+          onChange: onSelectChange,
+        }"
       >
         <a slot="communityName" slot-scope="text">
           <a-tooltip>
@@ -69,10 +85,16 @@
             {{ text }}
           </a-tooltip>
         </a>
+        <div slot="aaa" class="aaa" slot-scope="text">
+          <a-tooltip>
+            <template slot="title"> {{ text }} </template>
+            {{ text }}
+          </a-tooltip>
+        </div>
         <span slot="action" slot-scope="text, record, index">
           <a @click="editInfo(record, index)">编辑</a>
           <a-divider type="vertical" />
-          <a @click="deleteInfo(record)">删除</a>
+          <a @click="deleteInfo(record.communityId)">删除</a>
         </span>
       </a-table>
     </div>
@@ -120,6 +142,8 @@ export default {
       searchForm: this.$form.createForm(this),
       allowClear: true,
       principalValue: [],
+      selectedRowKeys: [], // Check here to configure the default column
+      loading: false,
       columns: [
         {
           title: "项目名称",
@@ -129,7 +153,8 @@ export default {
         },
         {
           title: "所在地区",
-          dataIndex: "region",
+          dataIndex: "aaa",
+          scopedSlots: { customRender: "aaa" },
         },
         {
           title: "详细地址",
@@ -168,46 +193,60 @@ export default {
       tableData: [],
     };
   },
+  computed: {
+    hasSelected() {
+      return this.selectedRowKeys.length > 0;
+    },
+  },
   methods: {
-    async handleGetEditCommunities(communityId) {
+    async handleGetEditCommunities(communityId, index) {
       const { data } = await editCommunities(communityId);
-      this.$refs.EditDemo.openEditDarwer(data, communityId);
-      console.log(777);
+      console.log(data);
+      data.communityId = communityId;
+      this.$refs.EditDemo.openEditDarwer(data, index);
     },
     async handleGetCommunities() {
       const { data } = await communities();
-      // console.log(data.list);
-
+      console.log(data.list);
+      data.list.forEach((element) => {
+        if (element.regionStr.length == 0) {
+          element.regionStr = null;
+        } else {
+          element.regionStr = element.regionStr.toString();
+          element.aaa = element.regionStr;
+        }
+      });
       this.tableData = data.list;
       // this.tableData = data.list;
     },
     async handleDeleteCommunities(communityId) {
-      const { data } = await deleteCommunities(communityId);
-      console.log(1);
+      await deleteCommunities(communityId);
+      this.handleGetCommunities();
+      this.$message.success("删除成功");
     },
 
     async handleGetUserListAll() {
       const { data } = await userListAll();
       this.principalValue = data;
-      console.log("+++");
-      console.log(this.principalValue);
     },
     getEditDrawerDataF(value, index) {
-      value.key = index;
+      // value.communityId = index;
       this.$set(this.tableData, index, value);
+      this.handleGetCommunities();
     },
     editInfo(record, index) {
-      console.log(record);
-      this.handleGetEditCommunities(record.communityId);
+      this.handleGetEditCommunities(record.communityId, index);
+      this.handleGetUserListAll();
     },
     deleteInfo(value) {
       // this.tableData.splice(value, 1);
-      this.handleDeleteCommunities(value.communityId);
+      this.handleDeleteCommunities(value);
       // this.$message.success("删除成功");
-      this.handleGetCommunities();
     },
-    handleSearch(values) {
-      this.tableData = this.newTableData;
+    async handleSearch(values) {
+      // this.tableData = this.newTableData;
+      await this.handleGetCommunities();
+      // this.tableData = this.newTableData;
       // console.log(this.searchForm);
       if (values !== undefined) {
         for (const i in this.tableData) {
@@ -226,31 +265,36 @@ export default {
             this.tableData = arr;
           } else {
             // this.tableData = this.immobilityData;
+            // this.tableData = this.newTableData;
           }
         }
       } else {
-        console.log("this");
-        console.log(this.newTableData);
-        this.tableData = this.newTableData;
+        // this.tableData = this.newTableData;
+        this.handleGetCommunities();
       }
     },
 
-    handleInputChange(value) {
-      this.tableData = this.newTableData;
-      this.phoneValue = this.phoneValue.concat(value.data);
-      if (value.data == null) {
-        this.phoneValue = "";
-        this.tableData = this.newTableData;
+    async handleInputChange(value) {
+      // this.tableData = this.newTableData;
+      if (value.data !== null) {
+        this.phoneValue = this.phoneValue.concat(value.data);
+      } else {
+        this.phoneValue = this.phoneValue.substring(
+          0,
+          this.phoneValue.length - 1
+        );
       }
-      console.log(value.data);
       console.log(this.phoneValue);
-      if (this.phoneValue !== undefined) {
+      if (this.phoneValue !== "") {
         for (const i in this.tableData) {
           if (this.tableData[i] !== undefined) {
+            await this.handleGetCommunities();
             // 姓名查询
             let arr = this.tableData.filter((value, index) => {
               if (value.phone == null) {
                 value.phone = "";
+                // this.tableData = this.newTableData;
+                // this.handleGetCommunities();
               }
               return value.phone.indexOf(this.phoneValue) !== -1;
             });
@@ -261,19 +305,34 @@ export default {
             this.tableData = arr;
           } else {
             console.log("no");
-            this.tableData = this.newTableData;
+            // this.tableData = this.newTableData;
           }
         }
       } else {
-        console.log("this");
-        console.log(this.newTableData);
-        this.tableData = this.newTableData;
+        this.handleGetCommunities();
       }
     },
     getAddDemoF(value) {
       this.handleGetCommunities();
-      // value.key = this.tableData.length + 1;
-      // this.tableData.push(value);
+    },
+    start() {
+      this.loading = true;
+      // ajax request after empty completing
+      if (this.selectedRowKeys.length == 0) {
+        this.$message.error("请选择至少一个删除项");
+      }
+      setTimeout(() => {
+        this.selectedRowKeys.forEach((element, index) => {
+          this.handleDeleteCommunities(element);
+        });
+        this.loading = false;
+        this.selectedRowKeys = [];
+      }, 100);
+    },
+    onSelectChange(selectedRowKeys) {
+      console.log("selectedRowKeys changed: ", selectedRowKeys);
+
+      this.selectedRowKeys = selectedRowKeys;
     },
   },
 };
@@ -293,6 +352,12 @@ export default {
     .top {
       padding: 15px;
     }
+  }
+  .aaa {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    width: 120px;
   }
 }
 </style>

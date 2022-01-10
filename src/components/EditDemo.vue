@@ -47,9 +47,15 @@
               { initialValue: this.editDetail.principal },
             ]"
             placeholder="请选择负责人"
+            @change="principalValueClick"
           >
-            <a-select-option value="负责人1"> 负责人1 </a-select-option>
-            <a-select-option value="负责人2"> 负责人2 </a-select-option>
+            <a-select-option
+              v-for="item of principalValue"
+              :value="item.name"
+              :key="item.id"
+            >
+              {{ item.name }}
+            </a-select-option>
           </a-select>
         </a-form-item>
         <a-form-item label="联系电话">
@@ -61,19 +67,21 @@
         </a-form-item>
         <a-form-item label="项目图片">
           <a-upload
-            name="avatar"
+            name="file"
             list-type="picture-card"
             class="avatar-uploader"
             :show-upload-list="false"
-            action="https://www.mocky.io/v2/5cc8019d300000980a055e76"
+            action="https://api5.cvoon.com/base/manage/upload"
             :before-upload="beforeUpload"
             @change="handleChange"
-            v-decorator="[
-              'projectPicture',
-              { initialValue: this.editDetail.projectPicture },
-            ]"
+            v-decorator="['picture', { initialValue: this.editDetail.picture }]"
           >
-            <img v-if="imageUrl" :src="imageUrl" alt="avatar" />
+            <img
+              v-if="imageUrl"
+              style="width: 100%; height: 100%"
+              :src="imageUrl"
+              alt="file"
+            />
             <div v-else>
               <a-icon :type="loading ? 'loading' : 'plus'" />
               <div class="ant-upload-text">添加</div>
@@ -90,6 +98,14 @@
 <script>
 import axios from "axios";
 // import { editCommunities } from "@/api/communities";
+import { userListAll } from "@/api/user.js";
+import { editCommunitiespPreservation } from "@/api/communities";
+
+function getBase64(img, callback) {
+  const reader = new FileReader();
+  reader.addEventListener("load", () => callback(reader.result));
+  reader.readAsDataURL(img);
+}
 export default {
   created() {
     axios({
@@ -113,26 +129,61 @@ export default {
       cascader: [],
       loading: false,
       imageUrl: "",
+      communityId: "",
+      principalValue: [],
+      principalId: "",
+      e: "",
     };
   },
   methods: {
+    principalValueClick(e) {
+      this.e = e;
+      this.handleGetUserListAll();
+    },
     editFormSubmit() {
-      this.editForm.validateFields((err, values) => {
-        console.log("~~~");
+      this.editForm.validateFields(async (err, values) => {
+        console.log("ggg");
         console.log(values);
-
-        this.$emit("getEditDrawerData", values, this.editIndex);
+        values.communityName = values.name;
+        values.communityId = this.communityId;
+        values.key = this.communityId;
+        values.picture = this.imageUrl;
+        values.id = this.communityId;
+        values.principalId = this.principalId;
+        // values.key =
         this.visible = false;
+        await this.handleEditCommunitiespPreservation(values);
+        this.$emit(
+          "getEditDrawerData",
+          values,
+          this.editIndex,
+          this.principalId
+        );
+
         this.$message.success("修改成功");
       });
     },
-
-    openEditDarwer(value, index) {
+    async handleEditCommunitiespPreservation(value) {
+      const { data } = await editCommunitiespPreservation(value);
+    },
+    async handleGetUserListAll() {
+      const { data } = await userListAll();
+      this.principalValue = data;
+      this.principalValue.forEach((element) => {
+        if (element.name == this.e) {
+          this.principalId = element.id;
+        }
+      });
+    },
+    async openEditDarwer(value, index) {
+      console.log("value");
+      console.log(value);
       this.visible = true;
-      console.log("waawawa");
+      await this.handleGetUserListAll();
       this.editDetail = value;
-      console.log(this.editDetail);
       this.editIndex = index;
+      this.communityId = value.communityId;
+      this.imageUrl = value.picture;
     },
     afterVisibleChange() {},
     onClose() {
@@ -146,12 +197,14 @@ export default {
       if (info.file.status === "done") {
         // Get this url from response in real world.
         getBase64(info.file.originFileObj, (imageUrl) => {
-          this.imageUrl = imageUrl;
+          this.imageUrl = info.file.response.data;
           this.loading = false;
         });
       }
     },
     beforeUpload(file) {
+      console.log("file");
+      console.log(file);
       const isJpgOrPng =
         file.type === "image/jpeg" || file.type === "image/png";
       if (!isJpgOrPng) {

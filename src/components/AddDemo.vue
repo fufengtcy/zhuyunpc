@@ -8,6 +8,7 @@
       :visible="visible"
       :after-visible-change="afterVisibleChange"
       @close="onClose"
+      :destroyOnClose="true"
       width="400"
     >
       <a-form
@@ -40,8 +41,13 @@
         </a-form-item>
         <a-form-item label="负责人">
           <a-select v-decorator="['principal']" placeholder="请选择负责人">
-            <a-select-option value="负责人1"> 负责人1 </a-select-option>
-            <a-select-option value="负责人2"> 负责人2 </a-select-option>
+            <a-select-option
+              v-for="item of principalValue"
+              :value="item.name"
+              :key="item.id"
+            >
+              {{ item.name }}
+            </a-select-option>
           </a-select>
         </a-form-item>
         <a-form-item label="联系电话">
@@ -50,16 +56,25 @@
         </a-form-item>
         <a-form-item label="项目图片">
           <a-upload
-            name="avatar"
+            name="file"
             list-type="picture-card"
             class="avatar-uploader"
             :show-upload-list="false"
-            action="https://www.mocky.io/v2/5cc8019d300000980a055e76"
+            action="https://api5.cvoon.com/base/manage/upload"
             :before-upload="beforeUpload"
             @change="handleChange"
-            v-decorator="['projectPicture']"
+            v-decorator="['picture']"
           >
-            <img v-if="imageUrl" :src="imageUrl" alt="avatar" />
+            <div v-if="imageUrl" class="imgBox">
+              <img
+                style="width: 100%; height: 100%"
+                v-if="imageUrl"
+                :src="imageUrl"
+                alt="avatar"
+              />
+              <div class="deleteImg" @click="deleteImg">x</div>
+            </div>
+
             <div v-else>
               <a-icon :type="loading ? 'loading' : 'plus'" />
               <div class="ant-upload-text">添加</div>
@@ -76,7 +91,9 @@
 <script>
 import axios from "axios";
 import { addCommunities } from "@/api/communities";
+import { userListAll } from "@/api/user.js";
 function getBase64(img, callback) {
+  console.log(img);
   const reader = new FileReader();
   reader.addEventListener("load", () => callback(reader.result));
   reader.readAsDataURL(img);
@@ -97,29 +114,38 @@ export default {
   },
   data() {
     return {
+      true: true,
       visible: false,
       formLayout: "horizontal",
       addForm: this.$form.createForm(this),
       cascader: [],
       loading: false,
       imageUrl: "",
+      principalValue: [],
     };
   },
   methods: {
+    deleteImg(e) {
+      this.imageUrl = null;
+      e.stopPropagation();
+    },
+    async handleGetUserListAll() {
+      const { data } = await userListAll();
+      this.principalValue = data;
+    },
     async handlePostAddCommunities(value) {
-      console.log("++++");
-      console.log(value);
       const data = await addCommunities(value);
       if (data.code == 200) {
         this.$message.success("添加成功");
         this.visible = false;
+        this.$emit("getAddDemo", value);
       }
     },
     addFormSubmit() {
       this.addForm.validateFields((err, values) => {
         if (!err) {
+          values.picture = this.imageUrl;
           this.handlePostAddCommunities(values);
-          this.$emit("getAddDemo", values);
         } else {
           this.$message.error("表单还未提交完整");
         }
@@ -128,6 +154,8 @@ export default {
     afterVisibleChange(val) {},
     showDrawer() {
       this.visible = true;
+      this.imageUrl = null;
+      this.handleGetUserListAll();
     },
     onClose() {
       this.visible = false;
@@ -140,7 +168,9 @@ export default {
       if (info.file.status === "done") {
         // Get this url from response in real world.
         getBase64(info.file.originFileObj, (imageUrl) => {
-          this.imageUrl = imageUrl;
+          // this.imageUrl = imageUrl;
+          this.imageUrl = info.file.response.data;
+          console.log(this.imageUrl);
           this.loading = false;
         });
       }
@@ -178,5 +208,24 @@ export default {
 .ant-upload-select-picture-card .ant-upload-text {
   margin-top: 8px;
   color: #666;
+}
+.deleteImg {
+  width: 20px;
+  height: 20px;
+  top: 0;
+  right: 0;
+  font-weight: bold;
+  cursor: pointer;
+  // background-color: pink;
+  position: absolute;
+}
+.imgBox {
+  width: 100%;
+  height: 100%;
+  position: relative;
+  padding: 0;
+}
+.ant-upload {
+  padding: 0;
 }
 </style>

@@ -9,7 +9,7 @@ const service = axios.create({
 service.interceptors.request.use(
   ({ headers, params = {}, data = {}, ...rest }) => {
     const token =
-      "c28e2a1195d46825ac522fe12b5137c745642d5e98e65007b8d24daf64fd4633";
+      "6ccb6f5f746003575c6e27c7675b9632435127eedf8d2d1fe862de5c1c82c1c8";
     return {
       ...rest,
       params: { ...params },
