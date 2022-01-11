@@ -1,7 +1,7 @@
 <template>
   <div class="editDemo">
     <a-drawer
-      title="编辑项目"
+      title="编辑通知"
       placement="right"
       :closable="false"
       :visible="visible"
@@ -15,39 +15,18 @@
         :wrapper-col="{ span: 30 }"
         labelAlign="left"
       >
-        <a-form-item label="项目名称">
-          <a-input
-            placeholder="请输入项目名称"
-            v-decorator="[
-              'name',
-              {
-                rules: [{ required: true, message: '请输入项目名称' }],
-                initialValue: this.editDetail.name,
-              },
-            ]"
-          />
-        </a-form-item>
-        <a-form-item label="所在地区">
-          <a-cascader
-            :options="cascader"
-            placeholder="请选择所在地区"
-            v-decorator="['region', { initialValue: this.editDetail.region }]"
-          />
-        </a-form-item>
-        <a-form-item label="详细地址">
-          <a-input
-            placeholder="请输入详细地址"
-            v-decorator="['address', { initialValue: this.editDetail.address }]"
-          />
-        </a-form-item>
-        <a-form-item label="负责人">
+        <a-form-item label="所属项目">
           <a-select
             v-decorator="[
-              'principal',
-              { initialValue: this.editDetail.principal },
+              'communityName',
+              {
+                rules: [{ required: true }],
+                initialValue: this.editDetail.communityName,
+              },
             ]"
-            placeholder="请选择负责人"
-            @change="principalValueClick"
+            placeholder="请选择所属项目"
+            @change="handleProject"
+            :showSearch="allowClear"
           >
             <a-select-option
               v-for="item of principalValue"
@@ -58,14 +37,38 @@
             </a-select-option>
           </a-select>
         </a-form-item>
-        <a-form-item label="联系电话">
-          <a-input
-            placeholder="请输入联系电话"
-            v-decorator="['phone', { initialValue: this.editDetail.phone }]"
-          />
-          <div class="tip">联系电话对应相应小区的打印单据显示</div>
+        <a-form-item label="通知人员">
+          <a-select
+            mode="multiple"
+            style="width: 100%"
+            placeholder="请选择楼座"
+            @change="handleChangeBalcony"
+            v-decorator="[
+              'buildingIdList',
+              {
+                rules: [{ required: true, message: '请选择要通知的人员' }],
+                initialValue: this.editDetail.buildingIdList,
+              },
+            ]"
+          >
+            <a-select-option v-for="item in balconyList" :key="item.buildingId">
+              {{ item.buildingName }}
+            </a-select-option>
+          </a-select>
         </a-form-item>
-        <a-form-item label="项目图片">
+        <a-form-item label="通知标题">
+          <a-input
+            placeholder="请输入通知标题"
+            v-decorator="[
+              'name',
+              {
+                rules: [{ required: true, message: '请输入通知标题' }],
+                initialValue: this.editDetail.name,
+              },
+            ]"
+          />
+        </a-form-item>
+        <a-form-item label="首页图片">
           <a-upload
             name="file"
             list-type="picture-card"
@@ -74,7 +77,13 @@
             action="https://api5.cvoon.com/base/manage/upload"
             :before-upload="beforeUpload"
             @change="handleChange"
-            v-decorator="['picture', { initialValue: this.editDetail.picture }]"
+            v-decorator="[
+              'img',
+              {
+                rules: [{ required: true, message: '请输入通知标题' }],
+                initialValue: this.editDetail.img,
+              },
+            ]"
           >
             <img
               v-if="imageUrl"
@@ -88,6 +97,19 @@
             </div>
           </a-upload>
         </a-form-item>
+        <a-form-item label="通知内容">
+          <a-textarea
+            placeholder="请输入"
+            :rows="4"
+            v-decorator="[
+              'content',
+              {
+                rules: [{ required: true, message: '请添加首页图片' }],
+                initialValue: this.editDetail.content,
+              },
+            ]"
+          />
+        </a-form-item>
         <a-form-item>
           <a-button type="primary" @click="editFormSubmit"> 保存 </a-button>
         </a-form-item>
@@ -100,6 +122,7 @@ import axios from "axios";
 // import { editCommunities } from "@/api/communities";
 import { userListAll } from "@/api/user.js";
 import { editCommunitiespPreservation } from "@/api/communities";
+import { balconyList } from "@/api/user.js";
 
 function getBase64(img, callback) {
   const reader = new FileReader();
@@ -107,19 +130,6 @@ function getBase64(img, callback) {
   reader.readAsDataURL(img);
 }
 export default {
-  created() {
-    axios({
-      method: "get",
-      url: "/base/manage/base-data/area?community_ids=",
-    })
-      .then((resp) => {
-        // console.log(resp); //请求成功
-        this.cascader = resp.data.data;
-      })
-      .catch((error) => {
-        console.log(error); //请求失败
-      });
-  },
   data() {
     return {
       editDetail: {},
@@ -133,9 +143,23 @@ export default {
       principalValue: [],
       principalId: "",
       e: "",
+      imageUrl: "",
+      principalValue: ["美国白宫"],
+      allowClear: true,
+      balconyList: [],
+      projectClick: "",
+      community_ids: 0,
     };
   },
   methods: {
+    async handleGetbalconyList(value) {
+      const { data } = await balconyList(value);
+      console.log(data);
+      this.balconyList = data;
+    },
+    handleChangeBalcony(value) {
+      console.log(`selected ${value}`);
+    },
     principalValueClick(e) {
       this.e = e;
       this.handleGetUserListAll();
@@ -146,9 +170,8 @@ export default {
         console.log(values);
         values.communityName = values.name;
         values.communityId = this.communityId;
-        values.key = this.communityId;
-        values.picture = this.imageUrl;
-        values.id = this.communityId;
+        values.img = this.imageUrl;
+        values.noticeId = this.noticeId;
         values.principalId = this.principalId;
         // values.key =
         this.visible = false;
@@ -166,6 +189,17 @@ export default {
     async handleEditCommunitiespPreservation(value) {
       const { data } = await editCommunitiespPreservation(value);
     },
+    handleProject(e) {
+      this.projectClick = e;
+      console.log(e);
+      this.principalValue.forEach((element, index) => {
+        if (element.name == e) {
+          this.community_ids = element.id;
+          console.log(this.community_ids);
+        }
+      });
+      this.handleGetbalconyList(this.community_ids);
+    },
     async handleGetUserListAll() {
       const { data } = await userListAll();
       this.principalValue = data;
@@ -178,12 +212,25 @@ export default {
     async openEditDarwer(value, index) {
       console.log("value");
       console.log(value);
+      this.noticeId = value.noticeId;
       this.visible = true;
+      this.handleGetbalconyList(value.communityId);
       await this.handleGetUserListAll();
+      axios({
+        method: "get",
+        url: "/base/manage/base-data/area?community_ids=",
+      })
+        .then((resp) => {
+          // console.log(resp); //请求成功
+          this.cascader = resp.data.data;
+        })
+        .catch((error) => {
+          console.log(error); //请求失败
+        });
       this.editDetail = value;
       this.editIndex = index;
       this.communityId = value.communityId;
-      this.imageUrl = value.picture;
+      this.imageUrl = value.img;
     },
     afterVisibleChange() {},
     onClose() {

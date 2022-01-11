@@ -8,35 +8,21 @@
           :wrapper-col="{ span: 18 }"
         >
           <a-col :span="5">
-            <a-form-item label="负责人">
-              <a-select
-                v-decorator="['principal']"
-                placeholder="请选择负责人"
-                @change="handleSearch"
-                :allowClear="allowClear"
-              >
-                <a-select-option
-                  v-for="item of principalValue"
-                  :value="item.name"
-                  :key="item.id"
-                >
-                  <img
-                    :src="item.avatar"
-                    alt=""
-                    style="border-radius: 50%; width: 30px; height: 30px"
-                  />
-                  {{ item.name }}
-                </a-select-option>
-              </a-select>
-            </a-form-item>
-          </a-col>
-          <a-col :span="5">
-            <a-form-item label="联系电话">
+            <a-form-item label="快速搜索">
               <a-input
                 @change="handleInputChange"
                 v-decorator="['phone']"
-                placeholder="请输入联系电话"
+                placeholder="请输入通知标题"
                 autocomplete="off"
+              />
+            </a-form-item>
+          </a-col>
+          <a-col :span="5">
+            <a-form-item label="添加时间">
+              <a-range-picker
+                :disabled-date="disabledDate"
+                :disabled-time="disabledRangeTime"
+                format="YYYY-MM-DD HH:mm:ss"
               />
             </a-form-item>
           </a-col>
@@ -60,9 +46,26 @@
         </a-row>
       </div>
       <div style="margin-bottom: 16px">
-        <a-button style="margin-left: 8px" type="primary" @click="start">
+        <a-popconfirm
+          v-if="selectedRowKeys.length"
+          title="确定删除所选项目？"
+          okText="确定"
+          cancelText="取消"
+          @confirm="() => start()"
+        >
+          <a-button style="margin-left: 8px" type="primary"> 删除 </a-button>
+        </a-popconfirm>
+        <a-button
+          v-else
+          @click="nothing"
+          style="margin-left: 8px"
+          type="primary"
+        >
           删除
         </a-button>
+        <!-- <a-button style="margin-left: 8px" type="primary" @click="start">
+          删除
+        </a-button> -->
         <span style="margin-left: 8px">
           <template v-if="hasSelected">
             {{ `已选择${selectedRowKeys.length} 项` }}
@@ -78,6 +81,9 @@
           selectedRowKeys: selectedRowKeys,
           onChange: onSelectChange,
         }"
+        :pagination="false"
+        :loading="loading"
+        :scroll="{ y: 500 }"
       >
         <a slot="communityName" slot-scope="text">
           <a-tooltip>
@@ -85,18 +91,62 @@
             {{ text }}
           </a-tooltip>
         </a>
-        <div slot="aaa" class="aaa" slot-scope="text">
+        <!-- <div slot="aaa" class="aaa" slot-scope="text">
           <a-tooltip>
             <template slot="title"> {{ text }} </template>
             {{ text }}
           </a-tooltip>
+        </div> -->
+        <div slot="aaa" class="aaa" slot-scope="text">
+          <a-tooltip>
+            <img style="width: 50px; height: 50px" :src="text" alt="" />
+          </a-tooltip>
+        </div>
+        <div slot="top" class="top" slot-scope="text">
+          <a-popconfirm
+            :title="topTitle"
+            okText="确定"
+            cancelText="取消"
+            @confirm="() => topSwitch(text)"
+          >
+            <a-switch
+              :defaultChecked="text"
+              :checked="topSwitchValue"
+              @change="topSwitchClick"
+            />
+          </a-popconfirm>
+        </div>
+        <div slot="visible" class="visible" slot-scope="text">
+          <a-popconfirm
+            :title="visibleTitle"
+            okText="确定"
+            cancelText="取消"
+            @confirm="() => visibleSwitch(text)"
+          >
+            <a-switch
+              :defaultChecked="text"
+              :checked="visibleSwitchValue"
+              @change="visibleSwitchClick"
+            />
+          </a-popconfirm>
         </div>
         <span slot="action" slot-scope="text, record, index">
-          <a @click="editInfo(record, index)">编辑</a>
+          <a @click="() => editInfo(record, index)">编辑</a>
           <a-divider type="vertical" />
-          <a @click="deleteInfo(record.communityId)">删除</a>
+          <a-popconfirm
+            title="确定删除所选项目？"
+            okText="确定"
+            cancelText="取消"
+            @confirm="() => deleteInfo(record.noticeId)"
+          >
+            <a href="javascript:;">删除</a>
+          </a-popconfirm>
+          <!-- <a @click="deleteInfo(record.communityId)"></a> -->
         </span>
       </a-table>
+      <div class="bottomBox">
+        <Pagination ref="Pagination" @change="onChangePge"></Pagination>
+      </div>
     </div>
   </div>
 </template>
@@ -105,21 +155,31 @@
 // @ is an alias to /src
 import AddDemo from "@/components/AddDemo.vue";
 import EditDemo from "@/components/EditDemo.vue";
+import Pagination from "@/components/Pagination.vue";
+import moment from "moment";
 import {
   communities,
   deleteCommunities,
   editCommunities,
 } from "@/api/communities";
 import { userListAll } from "@/api/user.js";
+import axios from "axios";
+
+const queryData = (params) => {
+  return axios.get("https://api5.cvoon.com/base/manage/communities/list", {
+    params: params,
+  });
+};
 
 export default {
   name: "Home",
   components: {
     AddDemo,
     EditDemo,
+    Pagination,
   },
   created() {
-    this.newTableData = this.tableData;
+    // this.newTableData = this.tableData;
     // axios({
     //   method: "get",
     //   url: "communities/list?community_ids=&pagesize=20&page=1&token=3c47c9fd549ea24d5fee29c65469cbc067d6044655b69a2412eeca70121d62ed",
@@ -131,59 +191,69 @@ export default {
     //   .catch((error) => {
     //     console.log(error); //请求失败
     //   });
-    this.handleGetCommunities();
+    this.handleGetCommunities(1);
     this.handleGetUserListAll();
   },
   data() {
     return {
       newTableData: [],
       phoneValue: "",
+      loading: false,
+      tableLength: 0,
       formLayout: "horizontal",
       searchForm: this.$form.createForm(this),
       allowClear: true,
       principalValue: [],
+      currentPage: 0,
       selectedRowKeys: [], // Check here to configure the default column
       loading: false,
       columns: [
         {
-          title: "项目名称",
-          dataIndex: "communityName",
+          title: "通知标题",
+          dataIndex: "name",
+
           slots: { title: "customTitle" },
           scopedSlots: { customRender: "communityName" },
         },
         {
-          title: "所在地区",
-          dataIndex: "aaa",
+          title: "首页图片",
+          dataIndex: "img",
           scopedSlots: { customRender: "aaa" },
         },
         {
-          title: "详细地址",
-          dataIndex: "address",
+          title: "所属项目",
+          dataIndex: "communityName",
         },
         {
-          title: "负责人",
-          dataIndex: "principal",
+          title: "通知人员",
+          dataIndex: "buildingList",
           // scopedSlots: { customRender: "tags" },
         },
         {
-          title: "负责人电话",
-          dataIndex: "phone",
+          title: "置顶",
+          dataIndex: "top",
+          scopedSlots: { customRender: "top" },
         },
         {
-          title: "管理面积",
-          dataIndex: "totalArea",
+          title: "显示",
+          dataIndex: "visible",
+          scopedSlots: { customRender: "visible" },
         },
         {
-          title: "楼座数量",
-          dataIndex: "buildingCount",
+          title: "小程序浏览人数",
+          dataIndex: "mpViewCount",
         },
         {
-          title: "房屋数量",
-          dataIndex: "houseCount",
+          title: "公众号推送人数",
+          dataIndex: "oaPushCount",
         },
         {
-          title: "业主数量",
-          dataIndex: "ownerCount",
+          title: "短信发送人数",
+          dataIndex: "smsSendCount",
+        },
+        {
+          title: "添加时间",
+          dataIndex: "createdAt",
         },
         {
           title: "操作",
@@ -191,6 +261,11 @@ export default {
         },
       ],
       tableData: [],
+      total: 0,
+      topSwitchValue: false,
+      visibleSwitchValue: false,
+      topTitle: "确定打开置顶？",
+      visibleTitle: "是否显示该通知",
     };
   },
   computed: {
@@ -199,30 +274,93 @@ export default {
     },
   },
   methods: {
-    async handleGetEditCommunities(communityId, index) {
-      const { data } = await editCommunities(communityId);
-      console.log(data);
-      data.communityId = communityId;
+    topSwitch() {
+      this.topSwitchValue = !this.topSwitchValue;
+      setTimeout(() => {
+        if (this.topSwitchValue) {
+          this.topTitle = "是否关闭置顶？";
+        } else {
+          this.topTitle = "确定打开置顶？";
+        }
+      }, 500);
+    },
+    visibleSwitch() {
+      this.visibleSwitchValue = !this.visibleSwitchValue;
+      setTimeout(() => {
+        if (this.visibleSwitchValue) {
+          this.visibleTitle = "确定隐藏该通知？";
+        } else {
+          this.visibleTitle = "是否显示该通知？";
+        }
+      }, 500);
+    },
+    topSwitchClick(e) {
+      console.log(e);
+    },
+    visibleSwitchClick() {},
+    // 分页
+    onChangePge(current) {
+      this.currentPage = current;
+      this.handleGetCommunities(this.currentPage);
+      console.log("total");
+      console.log(this.total);
+      this.$refs.Pagination.totalCurrent(this.total);
+    },
+    async handleGetEditCommunities(noticeId, index) {
+      console.log("noticeId");
+      console.log(noticeId);
+      const { data } = await editCommunities(noticeId);
+      // data.communityId = communityId;
       this.$refs.EditDemo.openEditDarwer(data, index);
     },
-    async handleGetCommunities() {
-      const { data } = await communities();
-      console.log(data.list);
-      data.list.forEach((element) => {
-        if (element.regionStr.length == 0) {
-          element.regionStr = null;
-        } else {
-          element.regionStr = element.regionStr.toString();
-          element.aaa = element.regionStr;
-        }
-      });
+    async handleGetCommunities(page) {
+      const { data } = await communities(page);
+      this.total = data.total;
+      console.log("数据呢");
+
       this.tableData = data.list;
       // this.tableData = data.list;
     },
     async handleDeleteCommunities(communityId) {
       await deleteCommunities(communityId);
-      this.handleGetCommunities();
+      this.handleGetCommunities(1);
       this.$message.success("删除成功");
+    },
+    moment,
+    range(start, end) {
+      const result = [];
+      for (let i = start; i < end; i++) {
+        result.push(i);
+      }
+      return result;
+    },
+
+    disabledDate(current) {
+      // Can not select days before today and today
+      return current && current < moment().endOf("day");
+    },
+
+    disabledDateTime() {
+      return {
+        disabledHours: () => this.range(0, 24).splice(4, 20),
+        disabledMinutes: () => this.range(30, 60),
+        disabledSeconds: () => [55, 56],
+      };
+    },
+
+    disabledRangeTime(_, type) {
+      if (type === "start") {
+        return {
+          disabledHours: () => this.range(0, 60).splice(4, 20),
+          disabledMinutes: () => this.range(30, 60),
+          disabledSeconds: () => [55, 56],
+        };
+      }
+      return {
+        disabledHours: () => this.range(0, 60).splice(20, 4),
+        disabledMinutes: () => this.range(0, 31),
+        disabledSeconds: () => [55, 56],
+      };
     },
 
     async handleGetUserListAll() {
@@ -232,20 +370,25 @@ export default {
     getEditDrawerDataF(value, index) {
       // value.communityId = index;
       this.$set(this.tableData, index, value);
-      this.handleGetCommunities();
+      this.handleGetCommunities(1);
     },
-    editInfo(record, index) {
-      this.handleGetEditCommunities(record.communityId, index);
+    editInfo(record) {
+      this.handleGetEditCommunities(record.noticeId);
       this.handleGetUserListAll();
     },
-    deleteInfo(value) {
+    nothing() {
+      this.$message.error("请选择至少一个删除项");
+    },
+    async deleteInfo(value) {
+      try {
+        await this.handleDeleteCommunities(value);
+      } catch (error) {}
       // this.tableData.splice(value, 1);
-      this.handleDeleteCommunities(value);
       // this.$message.success("删除成功");
     },
     async handleSearch(values) {
       // this.tableData = this.newTableData;
-      await this.handleGetCommunities();
+      await this.handleGetCommunities(1);
       // this.tableData = this.newTableData;
       // console.log(this.searchForm);
       if (values !== undefined) {
@@ -270,7 +413,7 @@ export default {
         }
       } else {
         // this.tableData = this.newTableData;
-        this.handleGetCommunities();
+        this.handleGetCommunities(1);
       }
     },
 
@@ -284,11 +427,10 @@ export default {
           this.phoneValue.length - 1
         );
       }
-      console.log(this.phoneValue);
       if (this.phoneValue !== "") {
         for (const i in this.tableData) {
           if (this.tableData[i] !== undefined) {
-            await this.handleGetCommunities();
+            await this.handleGetCommunities(1);
             // 姓名查询
             let arr = this.tableData.filter((value, index) => {
               if (value.phone == null) {
@@ -309,11 +451,13 @@ export default {
           }
         }
       } else {
-        this.handleGetCommunities();
+        this.handleGetCommunities(1);
       }
     },
     getAddDemoF(value) {
-      this.handleGetCommunities();
+      this.handleGetCommunities(1);
+      this.$refs.Pagination.defaultCurrent();
+      console.log(this.tableData);
     },
     start() {
       this.loading = true;

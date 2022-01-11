@@ -9,7 +9,7 @@ const service = axios.create({
 service.interceptors.request.use(
   ({ headers, params = {}, data = {}, ...rest }) => {
     const token =
-      "6ccb6f5f746003575c6e27c7675b9632435127eedf8d2d1fe862de5c1c82c1c8";
+      "7564d9d8bb7cb24567a2b48f614cf81ba3f7703a3652ebaeca0d790cb3bddb7a";
     return {
       ...rest,
       params: { ...params },
@@ -20,9 +20,10 @@ service.interceptors.request.use(
 );
 
 service.interceptors.response.use((response) => {
+  console.log(response);
   if (response.data.code !== 200) {
     message.error(response.data.message);
-    return false;
+    throw new Error(response.data);
   } else {
     return response.data;
   }

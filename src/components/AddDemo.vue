@@ -2,7 +2,7 @@
   <div class="addDemo">
     <a-button type="primary" @click="showDrawer"> + 添加 </a-button>
     <a-drawer
-      title="添加项目"
+      title="添加通知"
       placement="right"
       :closable="false"
       :visible="visible"
@@ -17,30 +17,13 @@
         :wrapper-col="{ span: 30 }"
         labelAlign="left"
       >
-        <a-form-item label="项目名称">
-          <a-input
-            placeholder="请输入项目名称"
-            autocomplete="off"
-            v-decorator="[
-              'name',
-              {
-                rules: [{ required: true, message: '请输入项目名称' }],
-              },
-            ]"
-          />
-        </a-form-item>
-        <a-form-item label="所在地区">
-          <a-cascader
-            :options="cascader"
-            placeholder="请选择所在地区"
-            v-decorator="['region']"
-          />
-        </a-form-item>
-        <a-form-item label="详细地址">
-          <a-input placeholder="请输入详细地址" v-decorator="['address']" />
-        </a-form-item>
-        <a-form-item label="负责人">
-          <a-select v-decorator="['principal']" placeholder="请选择负责人">
+        <a-form-item label="所属项目">
+          <a-select
+            v-decorator="['project', { rules: [{ required: true }] }]"
+            placeholder="请选择所属项目"
+            @change="handleProject"
+            :showSearch="allowClear"
+          >
             <a-select-option
               v-for="item of principalValue"
               :value="item.name"
@@ -50,11 +33,37 @@
             </a-select-option>
           </a-select>
         </a-form-item>
-        <a-form-item label="联系电话">
-          <a-input placeholder="请输入联系电话" v-decorator="['phone']" />
-          <div class="tip">联系电话对应相应小区的打印单据显示</div>
+        <a-form-item label="通知人员">
+          <FindMultiUsersSelectComponent
+            placeholder="请选择其他"
+            @change="onUserIdsChange"
+            :value="userId"
+          />
+          <!-- <a-select
+            mode="multiple"
+            style="width: 100%"
+            placeholder="请选择楼座"
+            @change="handleChangeBalcony"
+            v-decorator="[
+              'buildingIdList',
+              { rules: [{ required: true, message: '请选择要通知的人员' }] },
+            ]"
+          >
+            <a-select-option v-for="item in balconyList" :key="item.buildingId">
+              {{ item.buildingName }}
+            </a-select-option>
+          </a-select> -->
         </a-form-item>
-        <a-form-item label="项目图片">
+        <a-form-item label="通知标题">
+          <a-input
+            placeholder="请输入通知标题"
+            v-decorator="[
+              'name',
+              { rules: [{ required: true, message: '请输入通知标题' }] },
+            ]"
+          />
+        </a-form-item>
+        <a-form-item label="首页图片">
           <a-upload
             name="file"
             list-type="picture-card"
@@ -63,7 +72,10 @@
             action="https://api5.cvoon.com/base/manage/upload"
             :before-upload="beforeUpload"
             @change="handleChange"
-            v-decorator="['picture']"
+            v-decorator="[
+              'img',
+              { rules: [{ required: true, message: '请添加首页图片' }] },
+            ]"
           >
             <div v-if="imageUrl" class="imgBox">
               <img
@@ -81,8 +93,18 @@
             </div>
           </a-upload>
         </a-form-item>
+        <a-form-item label="通知内容">
+          <a-textarea
+            placeholder="请输入"
+            :rows="4"
+            v-decorator="[
+              'content',
+              { rules: [{ required: true, message: '请添加首页图片' }] },
+            ]"
+          />
+        </a-form-item>
         <a-form-item>
-          <a-button type="primary" @click="addFormSubmit"> 保存 </a-button>
+          <a-button type="primary" @click="addFormSubmit"> 提交 </a-button>
         </a-form-item>
       </a-form>
     </a-drawer>
@@ -91,7 +113,8 @@
 <script>
 import axios from "axios";
 import { addCommunities } from "@/api/communities";
-import { userListAll } from "@/api/user.js";
+import { userListAll, balconyList } from "@/api/user.js";
+import FindMultiUsersSelectComponent from "./FindMultiUsersSelectComponent.vue";
 function getBase64(img, callback) {
   console.log(img);
   const reader = new FileReader();
@@ -100,39 +123,52 @@ function getBase64(img, callback) {
 }
 export default {
   created() {
-    axios({
-      method: "get",
-      url: "/base/manage/base-data/area?community_ids=",
-    })
-      .then((resp) => {
-        // console.log(resp); //请求成功
-        this.cascader = resp.data.data;
-      })
-      .catch((error) => {
-        console.log(error); //请求失败
-      });
+    console.log("created!~~~~~~~");
+  },
+  components: {
+    FindMultiUsersSelectComponent,
   },
   data() {
     return {
       true: true,
+      userId: undefined,
       visible: false,
       formLayout: "horizontal",
       addForm: this.$form.createForm(this),
       cascader: [],
       loading: false,
       imageUrl: "",
-      principalValue: [],
+      principalValue: ["美国白宫"],
+      allowClear: true,
+      balconyList: [],
+      projectClick: "",
+      community_ids: 0,
     };
   },
   methods: {
+    onUserIdsChange(id) {
+      this.userId = id;
+      console.log("++++");
+      console.log(this.userId);
+      console.log("++++");
+    },
     deleteImg(e) {
       this.imageUrl = null;
       e.stopPropagation();
+    },
+    handleChangeBalcony(value) {
+      console.log(`selected ${value}`);
     },
     async handleGetUserListAll() {
       const { data } = await userListAll();
       this.principalValue = data;
     },
+    async handleGetbalconyList(value) {
+      const { data } = await balconyList(value);
+      console.log(data);
+      this.balconyList = data;
+    },
+
     async handlePostAddCommunities(value) {
       const data = await addCommunities(value);
       if (data.code == 200) {
@@ -144,18 +180,71 @@ export default {
     addFormSubmit() {
       this.addForm.validateFields((err, values) => {
         if (!err) {
-          values.picture = this.imageUrl;
+          values.communityId = this.community_ids;
+          values.img = this.imageUrl;
           this.handlePostAddCommunities(values);
         } else {
           this.$message.error("表单还未提交完整");
         }
       });
     },
+    handleProject(e) {
+      this.projectClick = e;
+      console.log(e);
+      this.principalValue.forEach((element, index) => {
+        if (element.name == e) {
+          this.community_ids = element.id;
+          console.log(this.community_ids);
+        }
+      });
+      this.handleGetbalconyList(this.community_ids);
+    },
     afterVisibleChange(val) {},
+    async handleSearch(values) {
+      // this.tableData = this.newTableData;
+      await this.handleGetCommunities(1);
+      // this.tableData = this.newTableData;
+      // console.log(this.searchForm);
+      if (values !== undefined) {
+        for (const i in this.tableData) {
+          if (values[i] !== undefined) {
+            // 姓名查询
+            let arr = this.tableData.filter((value, index) => {
+              if (value.principal == null) {
+                value.principal = "";
+              }
+              return value.principal.indexOf(values) !== -1;
+            });
+            // 手机号查询
+            // let arr = this.tableData.filter(
+            //   (value, index) => value.phone.indexOf(values) !== -1
+            // );
+            this.tableData = arr;
+          } else {
+            // this.tableData = this.immobilityData;
+            // this.tableData = this.newTableData;
+          }
+        }
+      } else {
+        // this.tableData = this.newTableData;
+        this.handleGetCommunities(1);
+      }
+    },
     showDrawer() {
       this.visible = true;
       this.imageUrl = null;
       this.handleGetUserListAll();
+      axios({
+        method: "get",
+        url: "/base/manage/base-data/area?community_ids=",
+      })
+        .then((resp) => {
+          // console.log(resp); //请求成功
+          this.cascader = resp.data.data;
+        })
+        .catch((error) => {
+          console.log(error); //请求失败
+        });
     },
     onClose() {
       this.visible = false;
