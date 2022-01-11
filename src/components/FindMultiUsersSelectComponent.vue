@@ -31,6 +31,7 @@ export default {
   },
   methods: {
     handleChange(id) {
+      console.log(id);
       this.$emit("change", id);
     },
     async handleGetUserListAll() {

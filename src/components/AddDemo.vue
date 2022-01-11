@@ -34,11 +34,16 @@
           </a-select>
         </a-form-item>
         <a-form-item label="通知人员">
-          <FindMultiUsersSelectComponent
+          <FindMultiUsersSelectComponent2
+            placeholder="请选择其他"
+            :value="userId"
+            @change="onNoticeUserChange"
+          />
+          <!-- <FindMultiUsersSelectComponent
             placeholder="请选择其他"
             @change="onUserIdsChange"
             :value="userId"
-          />
+          /> -->
           <!-- <a-select
             mode="multiple"
             style="width: 100%"
@@ -114,7 +119,8 @@
 import axios from "axios";
 import { addCommunities } from "@/api/communities";
 import { userListAll, balconyList } from "@/api/user.js";
-import FindMultiUsersSelectComponent from "./FindMultiUsersSelectComponent.vue";
+// import FindMultiUsersSelectComponent from "./FindMultiUsersSelectComponent.vue";
+import FindMultiUsersSelectComponent2 from "./FindMultiUsersSelectComponent2.vue";
 function getBase64(img, callback) {
   console.log(img);
   const reader = new FileReader();
@@ -126,7 +132,8 @@ export default {
     console.log("created!~~~~~~~");
   },
   components: {
-    FindMultiUsersSelectComponent,
+    // FindMultiUsersSelectComponent,
+    FindMultiUsersSelectComponent2,
   },
   data() {
     return {
@@ -146,6 +153,13 @@ export default {
     };
   },
   methods: {
+    onNoticeUserChange(id) {
+      this.userId = id;
+      console.log("++++");
+      console.log(this.userId);
+      console.log("++++");
+    },
+
     onUserIdsChange(id) {
       this.userId = id;
       console.log("++++");
